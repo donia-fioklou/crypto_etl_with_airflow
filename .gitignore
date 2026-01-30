@@ -1,0 +1,39 @@
+# Airflow
+logs/*
+!logs/.gitkeep
+plugins/__pycache__/
+dags/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Docker
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Airflow Database
+airflow.db
+airflow.cfg.bak
+webserver_config.py
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
