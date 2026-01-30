@@ -40,7 +40,7 @@ CoinGecko API → Extract → Transform → PostgreSQL
 ### 1. Cloner le projet
 
 ```bash
-git clone <votre-repo>
+git clone https://github.com/donia-fioklou/crypto_etl_with_airflow.git
 cd airflow-docker
 ```
 
