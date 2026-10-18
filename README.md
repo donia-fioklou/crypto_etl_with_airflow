@@ -1,96 +1,68 @@
-# Crypto ETL Pipeline with Apache Airflow
+# Pipeline ETL Crypto avec Apache Airflow
 
-Pipeline ETL automatisé pour collecter, transformer et stocker les données de cryptomonnaies en temps réel.
+**Auteur :** donia-fioklou
 
-## 📊 Architecture
+## Problématique
 
-```
-CoinGecko API → Extract → Transform → PostgreSQL
-                  ↓         ↓            ↓
-              Top 20    Volatilité   crypto_prices
-              cryptos   Catégories      table
-```
+Les données de cryptomonnaies évoluent en continu et doivent être collectées, transformées puis historisées automatiquement.  
+Comment mettre en place un pipeline robuste qui récupère les principales cryptos, nettoie et enrichit les données, puis les charge dans PostgreSQL à intervalle régulier ?
 
-## 🚀 Fonctionnalités
+## Solution : un pipeline ETL automatisé orchestré par Apache Airflow
 
-- **Extract**: Récupération des top 20 cryptos via l'API CoinGecko (gratuite, sans auth)
-- **Transform**: 
-  - Calcul de la volatilité sur 24h
-  - Catégorisation par market cap (Large/Mid/Small Cap)
-  - Nettoyage et enrichissement des données
-- **Load**: Insertion dans PostgreSQL avec indexation
-- **Scheduler**: Exécution automatique toutes les 5 minutes
-
-## 🛠️ Stack Technique
-
-- **Apache Airflow 3.1.6** (orchestration)
-- **PostgreSQL** (stockage)
-- **Docker Compose** (déploiement)
-- **Python 3.12**
-- **CoinGecko API** (source de données)
-
-## 📋 Prérequis
-
-- Docker Desktop installé
-- 8 GB RAM minimum
-- Connexion internet (pour l'API CoinGecko)
-
-## 🔧 Installation
-
-### 1. Cloner le projet
-
-```bash
-git clone https://github.com/donia-fioklou/crypto_etl_with_airflow.git
-cd airflow-docker
+```mermaid
+flowchart LR
+    API[CoinGecko API] --> E[Extract]
+    E --> T[Transform]
+    T --> L[Load]
+    L --> PG[(PostgreSQL)]
 ```
 
-### 2. Démarrer l'environnement
+### Extract : récupérer les données brutes
 
-```bash
-docker-compose up -d
-```
+- **Problème :** les prix et métriques des cryptos changent en permanence.
+- **Solution :** interroger l’API CoinGecko pour récupérer les top 20 cryptomonnaies sans authentification.
+- Les données extraites incluent notamment :
+  - symbole
+  - nom
+  - prix actuel
+  - market cap
+  - volume sur 24h
+  - variation sur 24h
+  - plus haut / plus bas sur 24h
 
-Airflow sera accessible sur **http://localhost:8080**
-- Username: `airflow`
-- Password: `airflow`
+### Transform : nettoyer et enrichir les données
 
-### 3. Configurer la connexion PostgreSQL
+La transformation applique plusieurs règles métier :
 
-Dans l'UI Airflow, aller dans **Admin → Connections** et créer :
+| Problème constaté | Technique utilisée |
+|---|---|
+| Données brutes non homogènes | Nettoyage et normalisation des champs |
+| Absence d’indicateur de volatilité | Calcul de la volatilité sur 24h |
+| Absence de catégorisation métier | Classification par market cap : Large / Mid / Small Cap |
+| Données à historiser | Ajout d’un horodatage d’extraction `extracted_at` |
 
-- **Connection ID**: `crypto_connection`
-- **Connection Type**: `Postgres`
-- **Host**: `postgres`
-- **Schema**: `airflow`
-- **Login**: `airflow`
-- **Password**: `airflow`
-- **Port**: `5432`
+### Load : historiser dans PostgreSQL
 
-### 4. Activer le DAG
+- **Problème :** les données doivent être consultables dans le temps.
+- **Solution :** insertion dans la table `crypto_prices` de PostgreSQL.
+- Des index sont créés pour améliorer les requêtes sur :
+  - `symbol`
+  - `extracted_at`
 
-Dans l'UI Airflow, activer le DAG `crypto_etl_pipeline` et déclencher manuellement la première exécution.
+## Architecture technique
 
-## 📁 Structure du Projet
+- **Apache Airflow 3.1.6** : orchestration du workflow
+- **PostgreSQL** : stockage des données
+- **Docker Compose** : déploiement de l’environnement
+- **Python 3.12** : logique ETL
+- **CoinGecko API** : source de données
 
-```
-airflow-docker/
-├── dags/
-│   └── crypto_etl_dag.py        # Pipeline ETL principal
-├── logs/                         # Logs Airflow
-├── plugins/                      # Plugins custom (vide)
-├── config/
-│   └── airflow.cfg              # Configuration Airflow
-├── docker-compose.yaml          # Orchestration des services
-├── requirements.txt             # Dépendances Python
-└── README.md
-```
+## Schéma de données
 
-## 📊 Schéma de Base de Données
-
-**Table: `crypto_prices`**
+### Table `crypto_prices`
 
 | Colonne | Type | Description |
-|---------|------|-------------|
+|---|---|---|
 | id | SERIAL | Clé primaire auto-incrémentée |
 | symbol | VARCHAR(10) | Symbole crypto (BTC, ETH...) |
 | name | VARCHAR(100) | Nom complet |
@@ -100,18 +72,51 @@ airflow-docker/
 | market_cap | BIGINT | Capitalisation boursière |
 | market_cap_rank | INT | Rang par market cap |
 | volume_24h | BIGINT | Volume échangé sur 24h |
-| price_change_24h_pct | NUMERIC(10,4) | Variation prix 24h (%) |
+| price_change_24h_pct | NUMERIC(10,4) | Variation du prix sur 24h (%) |
 | volatility_24h_pct | NUMERIC(10,2) | Volatilité calculée (%) |
-| category | VARCHAR(20) | Large/Mid/Small Cap |
-| extracted_at | TIMESTAMP | Date d'extraction |
+| category | VARCHAR(20) | Large / Mid / Small Cap |
+| extracted_at | TIMESTAMP | Date et heure d’extraction |
 
-**Indexes:**
+**Indexes :**
 - `idx_crypto_symbol` sur `symbol`
 - `idx_crypto_extracted_at` sur `extracted_at`
 
-## 🔍 Requêtes Utiles
+## Exécution rapide
 
-### Voir les dernières données
+1. Cloner le projet :
+```bash
+git clone https://github.com/donia-fioklou/crypto_etl_with_airflow.git
+cd crypto_etl_with_airflow
+```
+
+2. Démarrer l’environnement :
+```bash
+docker-compose up -d
+```
+
+3. Ouvrir Airflow dans le navigateur :  
+`http://localhost:8080`
+
+- Username : `airflow`
+- Password : `airflow`
+
+4. Configurer la connexion PostgreSQL dans Airflow :
+
+Dans **Admin → Connections**, créer une connexion :
+
+- **Connection ID** : `crypto_connection`
+- **Connection Type** : `Postgres`
+- **Host** : `postgres`
+- **Schema** : `airflow`
+- **Login** : `airflow`
+- **Password** : `airflow`
+- **Port** : `5432`
+
+5. Activer le DAG `crypto_etl_pipeline` puis lancer une première exécution manuellement.
+
+## Requêtes utiles
+
+### Voir les dernières données chargées
 
 ```sql
 SELECT symbol, name, current_price, volatility_24h_pct, category, extracted_at
@@ -120,7 +125,7 @@ ORDER BY extracted_at DESC
 LIMIT 10;
 ```
 
-### Cryptos les plus volatiles
+### Voir les cryptos les plus volatiles
 
 ```sql
 SELECT symbol, name, volatility_24h_pct, current_price
@@ -130,7 +135,7 @@ ORDER BY volatility_24h_pct DESC
 LIMIT 5;
 ```
 
-### Évolution d'une crypto
+### Suivre l’évolution d’une crypto
 
 ```sql
 SELECT extracted_at, current_price, volatility_24h_pct
@@ -140,17 +145,17 @@ ORDER BY extracted_at DESC
 LIMIT 20;
 ```
 
-## ⚙️ Configuration
+## Configuration
 
-### Modifier la fréquence d'exécution
+### Modifier la fréquence d’exécution
 
-Dans [crypto_etl_dag.py](dags/crypto_etl_dag.py) :
+Dans `dags/crypto_etl_dag.py` :
 
 ```python
 schedule=timedelta(minutes=5),  # Changer ici (ex: hours=1)
 ```
 
-### Nombre de cryptos à récupérer
+### Modifier le nombre de cryptos récupérées
 
 Dans la fonction `extract_crypto_data()` :
 
@@ -161,27 +166,35 @@ params = {
 }
 ```
 
-## 🐛 Troubleshooting
+## Vérification de la qualité
 
-### Le DAG ne s'exécute pas
+Quelques points à contrôler après exécution :
+
+- la table `crypto_prices` contient bien des lignes
+- les valeurs `symbol` et `name` sont remplies
+- les calculs de `volatility_24h_pct` et `category` sont cohérents
+- `extracted_at` est correctement renseigné
+- la connexion PostgreSQL fonctionne dans Airflow
+
+## Troubleshooting
+
+### Le DAG ne s’exécute pas
 
 - Vérifier que la connexion `crypto_connection` existe
-- Regarder les logs : `docker-compose logs -f airflow-webserver`
+- Consulter les logs Airflow
+- Vérifier que les conteneurs Docker sont démarrés
 
 ### Erreur API CoinGecko
 
-- Limite de taux : 10-50 requêtes/minute (gratuit)
 - Vérifier la connexion internet
+- Tenir compte de la limite de requêtes de l’API gratuite
 
 ### Erreur PostgreSQL
 
-- Vérifier que le service est up : `docker-compose ps`
-- Tester la connexion dans l'UI Airflow
+- Vérifier que le service PostgreSQL est bien démarré
+- Tester la connexion dans l’UI Airflow
+- Vérifier les identifiants de connexion
 
-## 📚 Ressources
+## Crédit
 
-- [Documentation Airflow](https://airflow.apache.org/docs/)
-- [API CoinGecko](https://www.coingecko.com/en/api/documentation)
-- [PostgreSQL Hooks](https://airflow.apache.org/docs/apache-airflow-providers-postgres/stable/connections/postgres.html)
-
-
+Projet réalisé en m’appuyant sur la documentation d’Apache Airflow, l’API CoinGecko et l’organisation générale inspirée de mon projet `sql-data-warehouse-project`.
