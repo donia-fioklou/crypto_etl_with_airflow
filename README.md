@@ -195,6 +195,4 @@ Quelques points à contrôler après exécution :
 - Tester la connexion dans l’UI Airflow
 - Vérifier les identifiants de connexion
 
-## Crédit
 
-Projet réalisé en m’appuyant sur la documentation d’Apache Airflow, l’API CoinGecko et l’organisation générale inspirée de mon projet `sql-data-warehouse-project`.
